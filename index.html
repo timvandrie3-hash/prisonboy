@@ -14,7 +14,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </style>
 </head>
 <body>
-<!-- v36: world rank on start screen -->
+<!-- v37: auto name prompt after first run -->
 <canvas id="c"></canvas>
 <script>
 (()=>{
@@ -1130,11 +1130,11 @@ function draw3D(ch,x,gy,s,tm,sq=1){let ok=false;try{ok=C3.draw(ctx,ch,x,gy,s,tm,
 
 // =================== Leaderboard (Supabase via Vercel /api) ===================
 const LBAPI='/api';
-const LBT={de:{title:'BESTENLISTE',week:'DIESE WOCHE',all:'ALLZEIT',you:'DU',load:'Lädt…',off:'Bestenliste nicht erreichbar',offSub:'Nur in der Online-Version (Vercel) verfügbar',empty:'Noch keine Einträge – sei der Erste!',nameT:'Dein Name für die Bestenliste',nameH:'2–16 Zeichen',ok:'SPEICHERN',cancel:'Abbrechen',enter:'✏️ Name eintragen → Bestenliste',sending:'Wird eingetragen…',rankW:'🏆 Platz #{n} diese Woche',newBest:' · Neuer Bestwert!',noRank:'Noch kein Eintrag – spiel eine Runde!',edit:'Name ändern',lv:'LV',world:'Weltrang'},
-  en:{title:'LEADERBOARD',week:'THIS WEEK',all:'ALL TIME',you:'YOU',load:'Loading…',off:'Leaderboard unavailable',offSub:'Only available in the online version (Vercel)',empty:'No entries yet – be the first!',nameT:'Your name for the leaderboard',nameH:'2–16 characters',ok:'SAVE',cancel:'Cancel',enter:'✏️ Enter name → leaderboard',sending:'Submitting…',rankW:'🏆 Rank #{n} this week',newBest:' · New best!',noRank:'No entry yet – play a round!',edit:'Change name',lv:'LV',world:'world rank'}};
+const LBT={de:{title:'BESTENLISTE',week:'DIESE WOCHE',all:'ALLZEIT',you:'DU',load:'Lädt…',off:'Bestenliste nicht erreichbar',offSub:'Nur in der Online-Version (Vercel) verfügbar',empty:'Noch keine Einträge – sei der Erste!',nameT:'Dein Name für die Bestenliste',nameH:'2–16 Zeichen',ok:'SPEICHERN',cancel:'Abbrechen',enter:'✏️ Name eintragen → Bestenliste',sending:'Wird eingetragen…',rankW:'🏆 Platz #{n} diese Woche',newBest:' · Neuer Bestwert!',noRank:'Noch kein Eintrag – spiel eine Runde!',edit:'Name ändern',lv:'LV',world:'Weltrang',firstT:'Ab in die Bestenliste!',firstS:'Du hast {s} Punkte – wie heißt du?',later:'Später'},
+  en:{title:'LEADERBOARD',week:'THIS WEEK',all:'ALL TIME',you:'YOU',load:'Loading…',off:'Leaderboard unavailable',offSub:'Only available in the online version (Vercel)',empty:'No entries yet – be the first!',nameT:'Your name for the leaderboard',nameH:'2–16 characters',ok:'SAVE',cancel:'Cancel',enter:'✏️ Enter name → leaderboard',sending:'Submitting…',rankW:'🏆 Rank #{n} this week',newBest:' · New best!',noRank:'No entry yet – play a round!',edit:'Change name',lv:'LV',world:'world rank',firstT:'Join the leaderboard!',firstS:'You scored {s} points – what’s your name?',later:'Later'}};
 const lbt=k=>LBT[lang==='de'?'de':'en'][k];
 let lbOpen=false,lbA=0,lbTab='week',lbData={week:null,all:null},lbErr={week:'',all:''},lbLoading={week:false,all:false},lbScroll=0,lbScrollT=0,lbDrag=null,lbTabA=0,lbPress=null;
-let subState='',subRes=null,pending=null,nameUI=null;
+let subState='',subRes=null,pending=null,nameUI=null,autoAsk=false,askedThisSession=false;
 let pName='';try{pName=localStorage.getItem('scooterName')||'';}catch(e){}
 let devId='';try{devId=localStorage.getItem('scooterDev')||'';}catch(e){}
 if(!/^[A-Za-z0-9-]{8,64}$/.test(devId)){devId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('d'+Date.now().toString(36)+Math.random().toString(36).slice(2,12));try{localStorage.setItem('scooterDev',devId);}catch(e){}}
@@ -1149,14 +1149,14 @@ function closeLB(){lbOpen=false;lbDrag=null;beep(420,.08,'triangle',.06);}
 function setLBTab(t){if(t===lbTab)return;lbTab=t;lbScroll=lbScrollT=0;lbFetch(t);beep(520,.05,'triangle',.06);}
 // ---- submit after a run ----
 function runInfo(){return{score:sc(),level:lvl,character:sel,duration:Math.round(t*10)/10};}
-function lbSubmit(){const r=runInfo();subRes=null;if(r.score<=0){subState='';return;}pending=r;if(!pName){subState='noname';return;}sendPending();}
+function lbSubmit(){const r=runInfo();subRes=null;if(r.score<=0){subState='';return;}pending=r;if(!pName){subState='noname';if(!askedThisSession)autoAsk=true;return;}sendPending();}
 async function sendPending(){if(!pending)return;const r=pending;subState='sending';
   try{const res=await fetch(`${LBAPI}/score`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:devId,name:pName,...r})});const j=await res.json().catch(()=>({}));
     if(!res.ok){if(res.status===400&&j.error==='Invalid name'){pName='';try{localStorage.removeItem('scooterName');}catch(e){}subState='noname';return;}throw new Error(res.status);}
     subRes={...j,score:r.score};subState='ok';if(j.all)setMyAll(j.all.rank,j.all.best);pending=null;lbData.week=null;lbData.all=null;}
   catch(e){subState='err';}}
 // ---- name entry (real text input, works with phone keyboards) ----
-function askName(cb){if(nameUI)return;const d=document.createElement('div');d.className='lbname';
+function askName(cb){if(nameUI)return;const first=!pName&&!!pending&&state==='over';const d=document.createElement('div');d.className='lbname';
   d.innerHTML=`<style>.lbname{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(6,8,18,.72);font-family:Poppins,system-ui,sans-serif;padding:16px}
   .lbname .c{width:min(360px,100%);background:rgba(16,20,42,.97);border:1.5px solid rgba(255,205,80,.6);border-radius:22px;padding:22px 20px 18px;box-shadow:0 18px 50px rgba(0,0,0,.5);color:#fff}
   .lbname h3{margin:0 0 4px;font-size:18px;font-weight:800}.lbname p{margin:0 0 14px;color:rgba(255,255,255,.6);font-size:13px}
@@ -1164,7 +1164,7 @@ function askName(cb){if(nameUI)return;const d=document.createElement('div');d.cl
   .lbname input:focus{border-color:#ffd24a}.lbname .r{display:flex;gap:10px;margin-top:16px}
   .lbname button{flex:1;font:800 15px Poppins,system-ui,sans-serif;border:0;border-radius:999px;padding:13px;cursor:pointer}
   .lbname .ok{background:linear-gradient(#ffe68a,#f2a81e);color:#4a2604}.lbname .no{background:rgba(255,255,255,.1);color:#fff}.lbname .e{color:#ff9a8a;font-size:12px;min-height:16px;margin-top:6px}</style>
-  <div class="c"><h3>🏆 ${lbt('nameT')}</h3><p>${lbt('nameH')}</p><input maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false"><div class="e"></div><div class="r"><button class="no">${lbt('cancel')}</button><button class="ok">${lbt('ok')}</button></div></div>`;
+  <div class="c"><h3>🏆 ${first?lbt('firstT'):lbt('nameT')}</h3><p>${first?lbt('firstS').replace('{s}',fmt(pending.score))+' · ':''}${lbt('nameH')}</p><input maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false"><div class="e"></div><div class="r"><button class="no">${first?lbt('later'):lbt('cancel')}</button><button class="ok">${lbt('ok')}</button></div></div>`;
   document.body.appendChild(d);nameUI=d;const inp=d.querySelector('input'),er=d.querySelector('.e');inp.value=pName;setTimeout(()=>{try{inp.focus();}catch(e){}},50);
   const done=v=>{d.remove();nameUI=null;cb&&cb(v);};
   const ok=()=>{const v=inp.value.normalize('NFKC').replace(/[^\p{L}\p{N} ._-]/gu,'').replace(/\s+/g,' ').trim().slice(0,16);if(v.length<2){er.textContent=lbt('nameH');return;}pName=v;try{localStorage.setItem('scooterName',v);}catch(e){}done(v);};
@@ -1172,7 +1172,7 @@ function askName(cb){if(nameUI)return;const d=document.createElement('div');d.cl
 // ---- busted-screen rank pill ----
 function lbPillRect(){const L=BL(),txt2=lbPillText();if(!txt2)return null;const w=Math.min(L.cw-40,tW(txt2,13,800)+34);return{x:W/2-w/2,y:L.cell.y+12,w,h:32,t:txt2};}
 function lbPillText(){if(subState==='noname')return lbt('enter');if(subState==='sending')return lbt('sending');if(subState==='ok'&&subRes&&subRes.week)return lbt('rankW').replace('{n}',subRes.week.rank)+(subRes.week.isBest&&subRes.week.rank<=50?lbt('newBest'):'');return '';}
-function lbPill(){const age=(performance.now()-overAt)/1000;if(age<1.4)return;const r=lbPillRect();if(!r)return;const a=clamp((age-1.4)/.3,0,1),tap=subState==='noname',pu=tap?1+.03*Math.sin(clock*5):1;
+function lbPill(){const age=(performance.now()-overAt)/1000;if(autoAsk&&age>1.7&&!nameUI&&state==='over'&&subState==='noname'){autoAsk=false;askedThisSession=true;askName(v=>{if(v)sendPending();});}if(age<1.4)return;const r=lbPillRect();if(!r)return;const a=clamp((age-1.4)/.3,0,1),tap=subState==='noname',pu=tap?1+.03*Math.sin(clock*5):1;
   ctx.save();ctx.globalAlpha=a;ctx.translate(W/2,r.y+r.h/2);ctx.scale(pu,pu);ctx.translate(-W/2,-r.y-r.h/2);
   if(tap){ctx.save();ctx.shadowColor='rgba(255,190,40,.6)';ctx.shadowBlur=16;ctx.fillStyle=lg(0,r.y,0,r.y+r.h,['#ffe68a','#f2a81e']);rr(r.x,r.y,r.w,r.h,r.h/2);ctx.restore();tP(r.t,W/2,r.y+r.h/2+4.5,13,'#4a2604','center',800,r.w-20);}
   else{glass(r.x,r.y,r.w,r.h,r.h/2,{fill:'rgba(14,18,38,.85)',stroke:'rgba(255,205,80,.7)',lw:1.4,blur:8,sy:2});tP(r.t,W/2,r.y+r.h/2+4.5,13,'#ffd24a','center',800,r.w-20);}
