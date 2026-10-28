@@ -1,6 +1,9 @@
 // Shared helper for the leaderboard API (not a route: files starting with "_" are ignored by Vercel).
-const SB_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim();
+// Finds the Supabase settings under any name Vercel gives them (also prefixed ones like STORAGE_SUPABASE_URL)
+const ENV = process.env;
+const findEnv = (...ends) => { for (const e of ends) { if (ENV[e]) return ENV[e]; } for (const e of ends) { const k = Object.keys(ENV).find(n => n.toUpperCase().endsWith(e) && ENV[n]); if (k) return ENV[k]; } return ''; };
+const SB_URL = String(findEnv('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL')).trim().replace(/\/$/, '');
+const SB_KEY = String(findEnv('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE_KEY')).trim();
 
 function configured() { return Boolean(SB_URL && SB_KEY); }
 
